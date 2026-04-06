@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Xiangqi Online</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+body { background:#111; color:white; text-align:center; font-family:Arial;}
+.board { display:grid; grid-template-columns: repeat(9,60px); gap:2px; justify-content:center;}
+.cell { width:60px; height:60px; background:#222; display:flex; align-items:center; justify-content:center;}
+.red{color:red} .black{color:#ccc}
+.selected{outline:3px solid blue}
+.move{background:green}
+</style>
+</head>
+<body>
+
+<h1>Xiangqi</h1>
+<button onclick="createGame()">Create Game</button>
+<div id="gameLink"></div>
+<div id="turnDisplay"></div>
+<div class="board" id="board"></div>
+
+<script>
+const socket = io();
+let gameId=null, selected=null, validMoves=[], currentGame=null;
+
+const symbols = {
+  r_r:"車", r_h:"馬", r_e:"相", r_a:"仕", r_g:"帥", r_c:"炮", r_s:"兵",
+  b_r:"車", b_h:"馬", b_e:"象", b_a:"士", b_g:"將", b_c:"砲", b_s:"卒"
+};
+
+function createGame(){ socket.emit('createGame'); }
+
+socket.on('gameCreated', id=>{
+  gameId=id;
+  document.getElementById("gameLink").innerText=location.href+"?g="+id;
+});
+
+socket.on('validMoves', m=>{ validMoves=m; render(currentGame); });
+socket.on('startGame', render);
+socket.on('update', render);
+
+function render(game){
+  currentGame=game;
+  const board=document.getElementById("board");
+  board.innerHTML="";
+  document.getElementById("turnDisplay").innerText="Turn: "+game.turn;
+
+  game.state.forEach((p,i)=>{
+    const div=document.createElement("div");
+    div.className="cell";
+
+    if(p){
+      div.innerText=symbols[p];
+      div.classList.add(p[0]==='r'?'red':'black');
+    }
+
+    if(i===selected) div.classList.add("selected");
+    if(validMoves.includes(i)) div.classList.add("move");
+
+    div.onclick=()=>clickCell(i);
+    board.appendChild(div);
+  });
+}
+
+function clickCell(i){
+  if(selected===null){
+    selected=i;
+    socket.emit('getValidMoves',{gameId,index:i});
+  } else {
+    socket.emit('move',{id:gameId,from:selected,to:i});
+    selected=null;
+    validMoves=[];
+  }
+}
+
+const params=new URLSearchParams(location.search);
+if(params.get("g")){
+  gameId=params.get("g");
+  socket.emit('joinGame',gameId);
+}
+</script>
+
+</body>
+</html>
